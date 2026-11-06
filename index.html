@@ -608,14 +608,13 @@ const POEM = `
 const STORY = [
   {type:"say", text:"Oh, hey. I was hoping I'd run into you."},
   {type:"say", text:"You know, it's funny how an ordinary day can become memorable because of one conversation."},
-  {type:"say", text:"I was thinking about sending you a Christmas card through the mail..."},
-  {type:"say", text:"But somehow, that didn't quite feel like enough."},
-  {type:"say", text:"So I thought I'd make you a little something instead."},
+  {type:"say", text:"I was thinking about sending you a text..."},
+  {type:"say", text:"But I thought I'd make you a little something instead."},
   {type:"say", text:"A little something I've been developing in secret, and bit more my style."},
   {type:"say", text:"There's no quest to complete, and no right answer to give."},
   {type:"say", text:"I just wanted to make something that might bring a smile to your face."},
 
-  {type:"say", text:"The year's almost over now. The days are getting shorter, and the air is starting to feel a little colder.", on:()=>{Scenes.go("dusk");Snow.start();}},
+  {type:"say", text:"Time has flown by and the year's almost over now. The days are getting shorter, and the air is starting to feel a little colder.", on:()=>{Scenes.go("dusk");Snow.start();}},
   {type:"narrate", text:"One by one, the lights begin to flicker on.", on:()=>Lights.on()},
 
   {type:"say", text:"It's been a pretty interesting year, hasn't it?"},
