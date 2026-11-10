@@ -1,6 +1,7 @@
 <!doctype html>
 <!--
-杉本碧, if you ever find this code, I want you to know that I love you :)
+杉本碧, if you ever find this code, I want you to know that I love you <3
+(Also if you have found this, good job, これは告白です)
 -->
 <html lang="en">
   <head>
@@ -561,8 +562,7 @@ textarea {
     <h1>A Cozy Winter Story<span>Aoi</span></h1>
     <div class="actions">
       <button class="btn" id="beginBtn" type="button">Begin</button>
-      <!-- <button class="btn ghost" id="testLetterBtn" type="button">Preview letter (temporary)</button> -->
-      <!-- <div class="note">A quiet moment. A letter. And something I’ve wanted to say.<br><small>Sound on, if you like · About three minutes</small></div> -->
+      <button class="btn ghost" id="testLetterBtn" type="button">Preview letter (temporary)</button>
     </div>
   </div>
 </div>
@@ -584,9 +584,9 @@ const SENDER = "Ian";
 /* Replace this sample poem with your own. Keep the backticks.
    A blank line makes a stanza break. */
 const POEM = `
-  I just wanted to thank you for everything because you mean the world to me.
-  Looking back, I have always thanked myself for attending that hackathon and going up there to talk with you.
-  Of all things I expected to find there, finding someone like you was never one of them.
+  I just wanted to thank you for absolutely everything because you mean the world to me.
+  Looking back to day we met, I have always thanked myself for attending that hackathon and going up there to talk with you.
+  Out of all things I expected to find there, finding someone like you was never one of them.
   Very few people have the warmth and kindness that you do, and I've genuinely treasured all of our time together.
   Each day, I find myself hoping that we'll grow even closer together and to be able to spend more time with one another.
   You must know by now that every time we call is the highlight of my week and what I look forward to the most.
@@ -595,8 +595,8 @@ const POEM = `
   And I truly want to be as open and honest with you as possible because I want you to feel that you can always be yourself around me and share whatever is on your mind without worrying about being judged.
   Over the past few months, you've shown me a kind of care I've never experienced before, and it means more to me that I can properly put into words (I hope you kow that I'll always do my best to offer you that same care and be someone you can lean on whenever you need).
   I feel so happy each time you send me a text or ask me how I'm doing, knowing that you remember me.
-  Sincerely, if you were here right now, I'd give you the biggest hug and break down in tears because there is no amount of words that can express how thankful and glad I am to have met you. 
-  Usually I feel like there's just so many things I want to say to you but I just don't know how.
+  Sincerely, if you were here right now, I'd give you the deepest embrace and break down in tears because there is no amount of words that can express how thankful and glad I am to have met you. 
+  Usually I feel as if there are just so many things I want to say to you but I just don't have the right words.
   Genuinely, what I do know is that you're someone incredibly special to me, and my feelings for you have grown beyond what I can describe as friendship.
   I can only hope the feelings I have for you are mutual, but regardless, I wanted you to know how much you mean to me. 
   More than anything, 碧、君のことが好きだよ.
@@ -939,7 +939,14 @@ const Letter = (() => {
     POEM.split("\n").forEach(text => {
       const span = document.createElement("span");
       span.className = text.trim() ? "ln" : "gap";
-      span.textContent = text;
+      const t = text.trim();
+      if (t) {
+        // Put the cursive letter in BEFORE measuring, so its width is counted.
+        const cap = document.createElement("span");
+        cap.className = "acro";
+        cap.textContent = t.charAt(0);
+        span.append(cap, t.slice(1));
+      }
       poemEl.append(span);
     });
 
@@ -953,7 +960,7 @@ const Letter = (() => {
         continue;
       }
 
-      const node = original.firstChild;
+      const node = original.lastChild;
       if (!node) continue;
 
       const range = document.createRange();
@@ -977,12 +984,21 @@ const Letter = (() => {
       }
 
       range.detach();
-
+      if (rows.length) rows[0].text = original.firstChild.textContent + rows[0].text;
       fixOrphans(rows);
-      rows.forEach(row => {
+      rows.forEach((row, i) => {
         const span = document.createElement("span");
         span.className = "ln";
-        span.textContent = row.text.trim();
+        const text = row.text.trim();
+        if (i === 0) {
+          // First row of a poem line: set its first letter apart for the acrostic.
+          const cap = document.createElement("span");
+          cap.className = "acro";
+          cap.textContent = text.charAt(0);
+          span.append(cap, text.slice(1));
+        } else {
+          span.textContent = text;
+        }
         result.append(span);
       });
     }
@@ -1496,6 +1512,15 @@ document.querySelector("#testLetterBtn")?.addEventListener("click", () => {
     }
   }
   #poem .ln{line-break:strict;text-wrap:pretty}
+  #poem .acro{
+    font-family:Parisienne,"Snell Roundhand","Segoe Script",cursive;
+    font-style:normal;
+    font-size:1.65em;
+    line-height:0;
+    color:#9a6a3c;
+    margin-right:.05em;
+    vertical-align:-.06em;
+  }
 </style>
 
 <button id="secretStar" type="button"
