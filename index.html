@@ -978,6 +978,7 @@ const Letter = (() => {
 
       range.detach();
 
+      fixOrphans(rows);
       rows.forEach(row => {
         const span = document.createElement("span");
         span.className = "ln";
@@ -1044,7 +1045,50 @@ const Letter = (() => {
     reopen(){ layer.classList.add("show");requestAnimationFrame(updateLetterScrollCue); }
   };
 })();
-
+/* No lonely last lines: if a paragraph's last line is a single word, or
+   only a few Japanese characters, pull words down from the line above. */
+function fixOrphans(rows){
+  const isCJK = ch => /[\u3000-\u30ff\u3400-\u9fff\uff00-\uffef]/.test(ch);
+  const visible = t => [...t.replace(/[\s.,!?、。！？…]/g, "")].length;
+  const isShort = t => {
+    t = t.trim();
+    if (/\s/.test(t)) return t.split(/\s+/).length < 2;
+    return [...t].some(isCJK) ? visible(t) < 4 : true;
+  };
+  for (let guard = 0; guard < 6 && rows.length > 1 && isShort(rows[rows.length - 1].text); guard++){
+    const last = rows[rows.length - 1], prev = rows[rows.length - 2];
+    const p = prev.text.replace(/\s+$/, "");
+    const chars = [...p];
+    let moved;
+    if (chars.length && isCJK(chars[chars.length - 1])){
+      let i = chars.length - 1;
+      while (i > 0 && !/[\s、。.,!?！？]/.test(chars[i - 1])) i--;
+      moved = (i > 0 && chars.length - i <= 14) ? chars.splice(i).join("") : chars.pop();
+    } else {
+      const sp = p.lastIndexOf(" ");
+      if (sp <= 0) break;
+      moved = p.slice(sp + 1) + " ";
+      chars.length = 0; chars.push(...p.slice(0, sp));
+    }
+    if (!chars.join("").trim()) break;
+    prev.text = chars.join("");
+    last.text = moved + last.text.trimStart();
+  }
+  // Rejoin a Japanese phrase split across the last two lines, if it fits.
+  if (rows.length > 1){
+    const last = rows[rows.length - 1], prev = rows[rows.length - 2];
+    const pc = [...prev.text.replace(/\s+$/, "")], lc = [...last.text.trim()];
+    if (pc.length && lc.length && isCJK(pc[pc.length - 1]) && isCJK(lc[0])){
+      let i = pc.length - 1;
+      while (i > 0 && !/[\s、。.,!?！？]/.test(pc[i - 1])) i--;
+      const frag = pc.slice(i);
+      if (i > 0 && frag.length <= 8 && frag.length + lc.length <= i){
+        prev.text = pc.slice(0, i).join("");
+        last.text = frag.join("") + lc.join("");
+      }
+    }
+  }
+}
 /* Export the entire letter, not just the visible scroll area.
    Browser-rendered font metrics preserve the letter's current typeface,
    line breaks, alignment, tracking, signature and SVG ornaments.
@@ -1451,6 +1495,7 @@ document.querySelector("#testLetterBtn")?.addEventListener("click", () => {
         scale(1.2);
     }
   }
+  #poem .ln{line-break:strict;text-wrap:pretty}
 </style>
 
 <button id="secretStar" type="button"
