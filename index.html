@@ -599,10 +599,10 @@ const POEM = `
   Usually I feel like there's just so many things I want to say to you but I just don't know how.
   Genuinely, what I do know is that you're someone incredibly special to me, and my feelings for you have grown beyond what I can describe as friendship.
   I can only hope the feelings I have for you are mutual, but regardless, I wanted you to know how much you mean to me. 
-  More than anything, 好きだよ.
+  More than anything, 碧、君のことが好きだよ.
   Of all the things I want to say, いつも本当にありがとう.
   Thank you for being you.
-  One last thing: これからもたくさん話そうね.
+  One last thing: これからもたくさん話そうね. 付き合ってくれませんか?
 `;
 
 const STORY = [
@@ -626,7 +626,7 @@ const STORY = [
   {type:"say", text:"But I think some things are better expressed in a letter than in a series of dialogue boxes."},
   {type:"say", text:"So, before this little adventure comes to an end, I have one last thing for you.", on:()=>Scenes.go("tree")},
 
-  {type:"narrate", text:"He reaches into his jacket pocket and takes out a small envelope.", on:()=>{Scenes.go("close"); setTimeout(()=>Envelope.rise(), reduced ? 0 : 1600);}},
+  {type:"narrate", text:"He reaches into his jacket pocket and takes out a small envelope while blushing.", on:()=>{Scenes.go("close"); setTimeout(()=>Envelope.rise(), motionOff ? 0 : 1600);}},
   {type:"say", text:"I hope you like it. This one's for you."},
   {type:"envelope"}
 ];
@@ -651,7 +651,10 @@ function landscape(id){
     [796,484,42,76],[928,489,45,75],[1542,594,130,130],[1429,188,75,140]];
   return `<defs>${sources.map(([x,y,rx,ry],i)=>`<radialGradient id="${id}-g${i}"><stop stop-color="white" stop-opacity=".9"/><stop offset="1" stop-color="white" stop-opacity="0"/></radialGradient><mask id="${id}-m${i}" maskUnits="userSpaceOnUse" x="0" y="0" width="1672" height="941"><ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="url(#${id}-g${i})"/></mask>`).join('')}</defs>
    <image class="painting" href="${WINTER_BG}" width="1672" height="941"/>
-   ${sources.map((_,i)=>`<g class="light-reveal" style="--delay:${i*.28}s;--pulse:${4.4+i*.49}s" mask="url(#${id}-m${i})"><image href="${WINTER_BG}" width="1672" height="941"/></g>`).join('')}`;
+   ${id==='sc-dusk'
+     ? sources.map((_,i)=>`<g class="light-reveal" style="--delay:${i*.28}s;--pulse:${4.4+i*.49}s" mask="url(#${id}-m${i})"><image href="${WINTER_BG}" width="1672" height="941"/></g>`).join('')
+     /* Scenes that start lit need no stagger: one copy under one combined mask. */
+     : `<mask id="${id}-all" maskUnits="userSpaceOnUse" x="0" y="0" width="1672" height="941">${sources.map(([x,y,rx,ry],i)=>`<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="url(#${id}-g${i})"/>`).join('')}</mask><g class="light-reveal" style="--delay:0s" mask="url(#${id}-all)"><image href="${WINTER_BG}" width="1672" height="941"/></g>`}`;
 }
 function layout(){
   const ratio=innerWidth/innerHeight;
@@ -680,7 +683,15 @@ const Scenes={
     buildFigures();
   },
   go(name){
-    document.querySelectorAll('.scene').forEach(sc=>sc.classList.toggle('active',sc.id==='sc-'+name));
+    const next=document.getElementById('sc-'+name), prev=document.querySelector('.scene.active');
+    if(!next||next===prev)return;
+    document.querySelectorAll('.scene').forEach(sc=>{
+      // Any scene still fading out from an earlier switch is cut immediately.
+      if(sc!==prev&&sc!==next&&!sc.classList.contains('active'))sc.classList.add('cut');
+      sc.classList.toggle('active',sc===next);
+    });
+    next.classList.remove('cut');
+    requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('.scene.cut').forEach(sc=>sc!==prev&&sc.classList.remove('cut'))));
   }
 };
 const Lights={on(){ $('#sc-dusk').classList.add('lit'); }};
@@ -699,7 +710,9 @@ const Snow = (() => {
       vy: (reduced ? 12 : 24) + d*(reduced ? 20 : 58), sway: 10 + Math.random()*26, ph: Math.random()*6.28, f: .4 + Math.random()*.8};
   }
   function resize(){
-    dpr = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+    const nd = Math.min(2, devicePixelRatio || 1);
+    if (W && innerWidth === W && nd === dpr && innerHeight <= c.height / dpr && innerHeight > H - 160){ H = innerHeight; return; }
+    dpr = nd; W = innerWidth; H = innerHeight;
     c.width = W*dpr; c.height = H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
     const max = Math.min(140, Math.round(W*H/9500));
     while (flakes.length < max) flakes.push(make(false));
@@ -865,21 +878,34 @@ const Envelope = (() => {
     const y=Math.max(v.top+65,Math.min(f.top+.59*f.height,dTop-wrap.offsetHeight*.25,v.top+v.height*.65));
     return {x:Math.max(v.left+wrap.offsetWidth*.4,Math.min(v.left+v.width-wrap.offsetWidth*.4,x)),y};
   }
-  let taken = false,offering=false;
+  let taken = false,offering=false,lastFit=null;
   return {
     rise(){
+      if(offering||taken)return;   // tapped ahead: the offer already placed it
       const p = chest();
       wrap.style.transition = "none"; set(p.x, innerHeight + 220, .48, -16); wrap.getBoundingClientRect();
       wrap.style.transition = ""; wrap.classList.add("visible");
       requestAnimationFrame(() => set(p.x, p.y, .5, -9));
     },
     refit(){
-      if(offering&&!taken){const v=visibleFrame();set(v.left+v.width/2,v.top+v.height*.46,1,-3);}
+      if(!offering||taken)return;
+      const v=visibleFrame();
+      // Ignore small address-bar shifts; only re-center for a real resize.
+      if(lastFit&&Math.abs(lastFit.w-v.width)<2&&Math.abs(lastFit.h-v.height)<80)return;
+      lastFit={w:v.width,h:v.height};
+      set(v.left+v.width/2,v.top+v.height*.46,1,-3);
     },
     async offer(){
       offering=true;
       viewport.classList.add("focus-away"); Snow.set(.75);
-      const v=visibleFrame();set(v.left+v.width/2,v.top+v.height*.46,1,-3);
+      const v=visibleFrame();lastFit={w:v.width,h:v.height};
+      if(!wrap.classList.contains("visible")){
+        // She tapped ahead of the rise: bring the envelope up from below now.
+        wrap.style.transition="none"; set(v.left+v.width/2, innerHeight+220, .6, -10); wrap.getBoundingClientRect();
+        wrap.style.transition=""; wrap.classList.add("visible");
+        await new Promise(r=>requestAnimationFrame(r));
+      }
+      set(v.left+v.width/2,v.top+v.height*.46,1,-3);
       await wait(1300);
       wrap.classList.add("bob", "clickable"); $("#envPrompt").classList.add("show");
       btn.focus({preventScroll:true});
@@ -917,7 +943,7 @@ const Letter = (() => {
       poemEl.append(span);
     });
 
-    await document.fonts.ready;
+    await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2000))]);
 
     const result = document.createDocumentFragment();
 
@@ -991,7 +1017,7 @@ const Letter = (() => {
   return {
     async unfold(fromRect){
       readerScrolling=false;
-      renderPoem();
+      const laidOut = renderPoem();
       layer.classList.add("show");
       requestAnimationFrame(updateLetterScrollCue);
       const r = paper.getBoundingClientRect();
@@ -1007,6 +1033,10 @@ const Letter = (() => {
       await wait(1050);
       fold.classList.add("u3"); await wait(650);
       fold.classList.add("u1"); await wait(850);
+      // Fonts can still be downloading on a phone; never start writing
+      // lines that are about to be replaced.
+      await Promise.race([laidOut, new Promise(r => setTimeout(r, 2500))]);
+      await laidOut.catch(()=>{});
       paper.classList.add("show");
       await wait(120); fold.classList.remove("show");
       write();
@@ -1218,12 +1248,20 @@ function visibleFrame(){
   const v=window.visualViewport;
   return {width:v?.width||innerWidth,height:v?.height||innerHeight,left:v?.offsetLeft||0,top:v?.offsetTop||0};
 }
+let fitQueued=0,lastViewport='';
 function fitVisualViewport(){
-  const v=visibleFrame(),style=document.documentElement.style;
-  style.setProperty('--available-height',v.height+'px');
-  style.setProperty('--visual-top',v.top+'px');
-  style.setProperty('--viewport-bottom',Math.max(0,innerHeight-v.height-v.top)+'px');
-  Envelope.refit();updateLetterScrollCue();
+  if(fitQueued)return;
+  fitQueued=requestAnimationFrame(()=>{
+    fitQueued=0;
+    const v=visibleFrame(),style=document.documentElement.style;
+    const key=[Math.round(v.height),Math.round(v.top),innerHeight].join(',');
+    if(key===lastViewport)return;           // nothing moved: skip the restyle
+    lastViewport=key;
+    style.setProperty('--available-height',v.height+'px');
+    style.setProperty('--visual-top',v.top+'px');
+    style.setProperty('--viewport-bottom',Math.max(0,innerHeight-v.height-v.top)+'px');
+    Envelope.refit();updateLetterScrollCue();
+  });
 }
 function updateLetterScrollCue(){
   const scroll=$('#paperScroll'),paper=$('#paper');
@@ -1295,7 +1333,7 @@ function playDialogueCue() {
     console.warn("Dialogue sound unavailable:", error);
   }
 }
-document.querySelector("#testLetterBtn").addEventListener("click", () => {
+document.querySelector("#testLetterBtn")?.addEventListener("click", () => {
   busy = true;
   if (typing) typing();
 
@@ -1686,6 +1724,44 @@ document.querySelector("#testLetterBtn").addEventListener("click", () => {
   .lux-stationery .paper-scroll h2{font-size:33px;}
   .lux-stationery #signoff span{font-size:39px;}
 }
+
+/* ===== Mobile stability fixes ===== */
+/* Stop the browser from zooming on quick double taps (iOS), which moved the
+   visual viewport and made every layer re-fit mid-animation. */
+html,body{overscroll-behavior:none}
+#viewport,#dialogue,#envWrap,#envPrompt,#letterLayer{touch-action:manipulation}
+/* Lights fade on once, then hold steady. The endless pulse repainted nine
+   full-size copies of the painting every frame. */
+.lit .light-reveal image{animation:none!important}
+/* Let the GPU move the camera and Ian as finished layers. The drift now
+   slides instead of zooming: a zoom forced the painting (and the blurred
+   close-up) to be re-drawn at a new size on every frame. */
+.scene.active .cam{will-change:transform}
+@keyframes camera-drift{from{transform:translate3d(.4%,0,0)}to{transform:translate3d(-.6%,-.5%,0)}}
+/* The close-up holds still behind Ian; its blurred lights stay a single
+   finished image. */
+#sc-close .cam,#sc-close.active .cam{animation:none!important}
+.fig>.actor{will-change:transform}
+/* While the envelope is offered, freeze the blurred scene so the blur is
+   computed once instead of every frame. */
+#viewport.focus-away .scene.active,
+#viewport.focus-away .scene.active *{animation-play-state:paused!important}
+#viewport.focus-away .breath{display:none}
+/* A scene skipped mid-fade disappears at once instead of stacking up. */
+.scene.cut{transition:none!important;opacity:0!important;visibility:hidden!important}
+/* drop-shadow on the 3D fold flickers on iOS; the middle panel already casts one. */
+.lux-stationery #fold{filter:none}
+/* Ian's close-up keeps one size even when the address bar slides. */
+@media(max-width:600px){#sc-close .fig{height:90svh}}
+/* Backdrop blur over an animated scene is costly on phones; the panel is
+   already nearly opaque. */
+@media(max-width:600px){.box{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(10,21,37,.93)}}
+
+/* The camera drifts by sliding, not zooming. Zooming forced the phone to
+   redraw the whole painting, and the blur on top of it, every frame. */
+@keyframes camera-drift{from{transform:translate3d(.4%,0,0)}to{transform:translate3d(-.6%,-.5%,0)}}
+/* The close-up's background is blurred, so it holds still. */
+#sc-close .cam{animation:none!important}
 </style>
 <script>
 (() => {
